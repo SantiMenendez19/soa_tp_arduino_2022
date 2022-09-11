@@ -56,3 +56,6 @@ Funciones:
    - FINAL DE CARRERA CIERRE/APERTURA
 - STATE_MACHINE(); // Fede
 - LOGGING(); (Despues lo vemos)
+
+Bibliografia:
+Libreria IRemote:  https://github.com/Arduino-IRremote/Arduino-IRremote
