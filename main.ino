@@ -44,6 +44,9 @@
 int power = 0;
 int state = 0;
 int event = 0;
+int button = LOW;
+int finalOpen = LOW;
+int finalClosed = HIGH;
 // END REGION VARIABLES
 
 void initInputs()
@@ -54,6 +57,7 @@ void initInputs()
   pinMode(PIN_REMOTE_CONTROL_IR, INPUT);
   IrReceiver.begin(PIN_REMOTE_CONTROL_IR, ENABLE_LED_FEEDBACK);
 }
+
 void initOutputs()
 {
   pinMode(PIN_GREEN_LED, OUTPUT);
@@ -62,6 +66,7 @@ void initOutputs()
   pinMode(PIN_ENGINE_CLOSE, OUTPUT);
   pinMode(PIN_ACTIVATE_ENGINE, OUTPUT);
 }
+
 void defineInitState()
 {
   readSensors();
@@ -79,16 +84,47 @@ void defineInitState()
   }
 }
 
-void onLed(int pinOn, int pinOff)
-{
+void turnOnLight(int pinLed) {
+  	digitalWrite(pinLed, 1);
+}
+
+void turnOffLight(int pinLed) {
+	digitalWrite(pinLed, 0);
 }
 
 void moveEngine(int direction)
 {
+
 }
 
-void readSensors()
+int readRemote()
 {
+  int value = LOW;
+  if (IrReceiver.decode())
+  {
+    Serial.println(IrReceiver.decodedIRData.command);
+    value = HIGH;
+    IrReceiver.resume();
+  }
+  return value;
+}
+
+void readSensors() {
+	  // Pulsador
+  	//int buttonVal = digitalRead(PIN_BUTTON);
+    //button = buttonVal;
+    // Control Remoto
+    int remoteVal = readRemote();
+    button = remoteVal;
+  	// Potenciometro
+  	int powerMeterVal = analogRead(POWER_METER);
+  	power = powerMeterVal / 4;
+    // Fin de carrera cierre
+    int closedSwitchVal = digitalRead(PIN_CLOSED_SWITCH);
+    finalOpen = closedSwitchVal;
+    // Fin de carrera apertura
+    int openSwitchVal = digitalRead(PIN_OPEN_SWITCH);
+    finalClosed = openSwitchVal;
 }
 
 void stateMachine()
@@ -107,7 +143,8 @@ void stateMachine()
         break;
       case EVENT_CHANGED_STATE:
         moveEngine(DIRECTION_OPEN_ENGINE);
-        onLed(PIN_RED_LED, PIN_GREEN_LED);
+        turnOnLight(PIN_RED_LED);
+        turnOffLight(PIN_GREEN_LED);
         Serial.println("Opening..");
         state = STATE_OPENING;
         break;
@@ -192,7 +229,8 @@ void stateMachine()
     {
       case EVENT_CLOSING_DETECTED:
         moveEngine(DIRECTION_STOP_ENGINE);
-        onLed(PIN_GREEN_LED, PIN_RED_LED);
+        turnOnLight(PIN_GREEN_LED);
+        turnOffLight(PIN_RED_LED);
         Serial.println("Close");
         state = STATE_CLOSED;
         break;
