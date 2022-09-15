@@ -151,7 +151,7 @@ void readSensors() {
     int remoteVal = readRemote();
     button = remoteVal;
   	// Potenciometro
-  	int powerMeterVal = analogRead(POWER_METER);
+  	int powerMeterVal = analogRead(PIN_POWER_METER);
   	power = powerMeterVal / 4;
     // Fin de carrera cierre
     int closedSwitchVal = digitalRead(PIN_CLOSED_SWITCH);
