@@ -12,9 +12,11 @@
 #define PIN_ENGINE_CLOSE 9
 #define PIN_ACTIVATE_ENGINE 10
 #define PIN_REMOTE_CONTROL_IR 11
-#define PIN_POWER_METER 12
-
 // END REGION PIN
+
+//REGION ANALOG PIN
+#define PIN_POWER_METER A1
+//END REGION ANALOG PIN
 
 // REGION STATE
 #define STATE_INITIAL 0
@@ -41,7 +43,9 @@
 
 // REGION OTHERS
 #define DEFAULT_BAUND_RATE 9600
-#define ARRAY_LENGTH 2; 
+#define ARRAY_LENGTH 2
+#define INDEX_ZERO 0
+#define INDEX_ONE 1 
 // END REGION OTHERS
 
 // REGION VARIABLES
@@ -78,9 +82,9 @@ void initOutputs()
 //INTERCAMBIA EL ORDEN DE LOS INDICES DE ARRAY DE SENSORES DE FIN DE CARRERA 
 void reverseIndex()
 {
-	int aux = indexSwitchSensors[0];
-    indexSwitchSensors[0] = indexSwitchSensors[1];
-    indexSwitchSensors[1] = aux;
+	int aux = indexSwitchSensors[INDEX_ZERO];
+    indexSwitchSensors[INDEX_ZERO] = indexSwitchSensors[INDEX_ONE];
+    indexSwitchSensors[INDEX_ONE] = aux;
 }
 
 //DEFINE EVENTO SEGUN SENSORES DE FINAL DE CARRERA PERO ALTERNA EL ORDEN EN QUE LOS LEE EN CADA LOOP 
@@ -90,12 +94,12 @@ int alternateSwitchEvent()
   int sensorResult[ARRAY_LENGTH] ={finalClosed,finalOpen};
   int sensorEvent[ARRAY_LENGTH] = {EVENT_AUTOMATIC_ACTION_CLOSE,EVENT_AUTOMATIC_ACTION_OPEN};
 
-  int index = indexSwitchSensors[0];
+  int index = indexSwitchSensors[INDEX_ZERO];
   if(sensorResult[index]==HIGH)
   {
     return sensorEvent[index];
   }
-  index = indexSwitchSensors[1];
+  index = indexSwitchSensors[INDEX_ONE];
   if(sensorResult[index]==HIGH)
   {
     return sensorEvent[index];
@@ -168,7 +172,6 @@ void logAction(char message[])
     {
         Serial.println(message);
     }
-
 }
 
 void stateMachine()
