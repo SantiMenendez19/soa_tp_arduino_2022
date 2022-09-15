@@ -83,39 +83,40 @@ void reverseIndex()
     indexSwitchSensors[1] = aux;
 }
 
-//DEFINE EVENTE SEGUN SENSORES DE FINALE DE CARRERA PERO ALTERNA EL ORDEN EN QUE LOS LEE EN CADA LOOP 
+//DEFINE EVENTO SEGUN SENSORES DE FINAL DE CARRERA PERO ALTERNA EL ORDEN EN QUE LOS LEE EN CADA LOOP 
 int alternateSwitchEvent()
 {
-    reverseIndex();
-    int sensorResult[ARRAY_LENGTH] ={finalClosed,finalOpen};
-    int sensorEvent[ARRAY_LENGTH = {EVENT_AUTOMATIC_ACTION_CLOSE,EVENT_AUTOMATIC_ACTION_OPEN};
-    for(int i = 0; i<ARRAY_LENGTH; i++)
-    {
-        int index = indexSwitchSensors[i];
-        if(sensorResult[index] == HIGH)
-        {
-           return sensorEvent[index];     
-        }
-    }
-    return LOW;
+  reverseIndex();
+  int sensorResult[ARRAY_LENGTH] ={finalClosed,finalOpen};
+  int sensorEvent[ARRAY_LENGTH] = {EVENT_AUTOMATIC_ACTION_CLOSE,EVENT_AUTOMATIC_ACTION_OPEN};
+
+  int index = indexSwitchSensors[0];
+  if(sensorResult[index]==HIGH)
+  {
+    return sensorEvent[index];
+  }
+  index = indexSwitchSensors[1];
+  if(sensorResult[index]==HIGH)
+  {
+    return sensorEvent[index];
+  }
+   return LOW;
 }
 
-void defineEvent()
+int defineEvent()
 {
     int oldManualAction = button;
     readSensors();
     //TODO: ver cuando este terminada la funcion de leer sensores
     if(button == HIGH && oldManualAction==LOW){
-        event = EVENT_MANUAL_ACTION;
-        return;
+        return EVENT_MANUAL_ACTION;
     }
     int sensorEvent = alternateSwitchEvent();
     if(sensorEvent > LOW)
     {
-        event = sensorEvent;
-        return;
+        return sensorEvent;
     }
-    event = EVENT_NOT_MODIFIED;
+    return EVENT_NOT_MODIFIED;
 }
 
 void turnOnLight(int pinLed) {
@@ -160,6 +161,7 @@ void readSensors() {
     int openSwitchVal = digitalRead(PIN_OPEN_SWITCH);
     finalClosed = openSwitchVal;
 }
+
 void logAction(char message[])
 {
     if(event != previusEvent)
@@ -172,7 +174,7 @@ void logAction(char message[])
 void stateMachine()
 {
     previusEvent = event;
-    defineEvent();
+    event = defineEvent();
     switch (state)
     {
         case STATE_INITIAL:
