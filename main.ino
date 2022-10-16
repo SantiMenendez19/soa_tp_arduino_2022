@@ -14,20 +14,25 @@
 #define PIN_REMOTE_CONTROL_IR 11
 // END REGION PIN
 
+//REGION ANALOG PIN
+#define PIN_POWER_METER A1
+//END REGION ANALOG PIN
+
 // REGION STATE
-#define STATE_OPENED 0
-#define STATE_CLOSED 1
-#define STATE_OPENING 2
-#define STATE_CLOSING 3
-#define STATE_STOP_OPENING 4
-#define STATE_STOP_CLOSING 5
+#define STATE_INITIAL 0
+#define STATE_OPENED 1
+#define STATE_CLOSED 2
+#define STATE_OPENING 3
+#define STATE_CLOSING 4
+#define STATE_STOP_OPENING 5
+#define STATE_STOP_CLOSING 6
 // END REGION STATE
 
 // REGION EVENT
-#define EVENT_CLOSING_DETECTED 0
-#define EVENT_OPENING_DETECTED 1
-#define EVENT_CHANGED_STATE 2
-#define EVENT_NOT_MODIFIED 3
+#define EVENT_AUTOMATIC_ACTION_CLOSE 1
+#define EVENT_AUTOMATIC_ACTION_OPEN 2
+#define EVENT_MANUAL_ACTION 3
+#define EVENT_NOT_MODIFIED 4
 // END REGION EVENT
 
 // REGION DIRECTION ENGINE
@@ -38,16 +43,23 @@
 
 // REGION OTHERS
 #define DEFAULT_BAUND_RATE 9600
+#define ARRAY_LENGTH 2
+#define INDEX_ZERO 0
+#define INDEX_ONE 1 
 // END REGION OTHERS
 
 // REGION VARIABLES
 int power = 0;
-int state = 0;
+int state = STATE_INITIAL;
 int event = 0;
+int previusEvent = LOW;
 int button = LOW;
 int finalOpen = LOW;
 int finalClosed = HIGH;
+//INDICES DE ARRAYS DE SENSORES DE FIN DE CARRERA 
+int indexSwitchSensors[ARRAY_LENGTH]={0,1};
 // END REGION VARIABLES
+
 
 void initInputs()
 {
@@ -67,29 +79,56 @@ void initOutputs()
   pinMode(PIN_ACTIVATE_ENGINE, OUTPUT);
 }
 
-void defineInitState()
+//INTERCAMBIA EL ORDEN DE LOS INDICES DE ARRAY DE SENSORES DE FIN DE CARRERA 
+void reverseIndex()
 {
-  readSensors();
-  switch (event)
+	int aux = indexSwitchSensors[INDEX_ZERO];
+    indexSwitchSensors[INDEX_ZERO] = indexSwitchSensors[INDEX_ONE];
+    indexSwitchSensors[INDEX_ONE] = aux;
+}
+
+//DEFINE EVENTO SEGUN SENSORES DE FINAL DE CARRERA PERO ALTERNA EL ORDEN EN QUE LOS LEE EN CADA LOOP 
+int alternateSwitchEvent()
+{
+  reverseIndex();
+  int sensorResult[ARRAY_LENGTH] ={finalClosed,finalOpen};
+  int sensorEvent[ARRAY_LENGTH] = {EVENT_AUTOMATIC_ACTION_CLOSE,EVENT_AUTOMATIC_ACTION_OPEN};
+
+  int index = indexSwitchSensors[INDEX_ZERO];
+  if(sensorResult[index]==HIGH)
   {
-  case EVENT_CLOSING_DETECTED:
-    state = STATE_CLOSED;
-    break;
-  case EVENT_OPENING_DETECTED:
-    state = STATE_OPENED;
-    break;
-  default:
-    state = STATE_CLOSING;
-    break;
+    return sensorEvent[index];
   }
+  index = indexSwitchSensors[INDEX_ONE];
+  if(sensorResult[index]==HIGH)
+  {
+    return sensorEvent[index];
+  }
+   return LOW;
+}
+
+int defineEvent()
+{
+    int oldManualAction = button;
+    readSensors();
+    //TODO: ver cuando este terminada la funcion de leer sensores
+    if(button == HIGH && oldManualAction==LOW){
+        return EVENT_MANUAL_ACTION;
+    }
+    int sensorEvent = alternateSwitchEvent();
+    if(sensorEvent > LOW)
+    {
+        return sensorEvent;
+    }
+    return EVENT_NOT_MODIFIED;
 }
 
 void turnOnLight(int pinLed) {
-  	digitalWrite(pinLed, 1);
+  	digitalWrite(pinLed, HIGH);
 }
 
 void turnOffLight(int pinLed) {
-	digitalWrite(pinLed, 0);
+	digitalWrite(pinLed, LOW);
 }
 
 void moveEngine(int direction)
@@ -117,7 +156,7 @@ void readSensors() {
     int remoteVal = readRemote();
     button = remoteVal;
   	// Potenciometro
-  	int powerMeterVal = analogRead(POWER_METER);
+  	int powerMeterVal = analogRead(PIN_POWER_METER);
   	power = powerMeterVal / 4;
     // Fin de carrera cierre
     int closedSwitchVal = digitalRead(PIN_CLOSED_SWITCH);
@@ -127,155 +166,200 @@ void readSensors() {
     finalClosed = openSwitchVal;
 }
 
+void logAction(char message[])
+{
+    if(event != previusEvent)
+    {
+        Serial.println(message);
+    }
+}
+
 void stateMachine()
 {
-  readSensors();
-  switch (state)
-  {
-    case STATE_CLOSED:
-    switch (event)
+    previusEvent = event;
+    event = defineEvent();
+    switch (state)
     {
-      case EVENT_CLOSING_DETECTED:
-        // NOTHING TODO
-        break;
-      case EVENT_OPENING_DETECTED:
-        Serial.println("Check Open sensor failure");
-        break;
-      case EVENT_CHANGED_STATE:
-        moveEngine(DIRECTION_OPEN_ENGINE);
-        turnOnLight(PIN_RED_LED);
-        turnOffLight(PIN_GREEN_LED);
-        Serial.println("Opening..");
-        state = STATE_OPENING;
-        break;
-      case EVENT_NOT_MODIFIED:
-        Serial.println("Check Close sensor failure");
-        break;
-      default:
-        Serial.println("Invalid Event");
-        break;
-    }
-    break;
-  case STATE_OPENED:
-    switch (event)
-    {
-      case EVENT_CLOSING_DETECTED:
-        Serial.println("Check Close sensor failure");
-        break;
-      case EVENT_OPENING_DETECTED:
-        // NOTHING TODO
-        break;
-      case EVENT_CHANGED_STATE:
-        moveEngine(DIRECTION_CLOSE_ENGINE);
-        Serial.println("Closing..");
-        state = STATE_CLOSING;
-        break;
-      case EVENT_NOT_MODIFIED:
-        Serial.println("Check Open sensor failure");
-        break;
-      default:
-        Serial.println("Invalid Event");
-        break;
-    }
-    break;
-  case STATE_OPENING:
-    switch (event)
-    {
-      case EVENT_CLOSING_DETECTED:
-        Serial.println("Check Close sensor failure");
-        break;
-      case EVENT_OPENING_DETECTED:
-        moveEngine(DIRECTION_STOP_ENGINE);
-        Serial.println("Open");
-        state = STATE_OPENED;
-        break;
-      case EVENT_CHANGED_STATE:
-        moveEngine(DIRECTION_STOP_ENGINE);
-        Serial.println("Stop Opening");
-        state = STATE_STOP_OPENING;
-        break;
-      case EVENT_NOT_MODIFIED:
-        moveEngine(DIRECTION_OPEN_ENGINE);
-        break;
-      default:
-        Serial.println("Invalid Event");
-        break;
-    }
-    break;
-    case STATE_STOP_OPENING:
-      switch (event)
-      {
-        case EVENT_CLOSING_DETECTED:
-          Serial.println("Check Close sensor failure");
-          break;
-        case EVENT_OPENING_DETECTED:
-          Serial.println("Check Open sensor failure");
-          break;
-        case EVENT_CHANGED_STATE:
-          moveEngine(DIRECTION_CLOSE_ENGINE);
-          Serial.println("Closing..");
-          state = STATE_CLOSING;
-          break;
+        case STATE_INITIAL:
+        switch(event)
+            {
+                case EVENT_AUTOMATIC_ACTION_CLOSE:
+                    turnOffLight(PIN_RED_LED);
+                    turnOnLight(PIN_GREEN_LED);
+                    moveEngine(DIRECTION_STOP_ENGINE);
+                    state = STATE_CLOSED;
+                    logAction("Closed");
+                    break;
+                case EVENT_AUTOMATIC_ACTION_OPEN:
+                    turnOffLight(PIN_GREEN_LED);
+                    turnOnLight(PIN_RED_LED);
+                    moveEngine(DIRECTION_STOP_ENGINE);
+                    state = STATE_OPENED;
+                    logAction("Opened");
+                    break;
+                case EVENT_MANUAL_ACTION:
+                    moveEngine(DIRECTION_CLOSE_ENGINE);
+                    turnOnLight(PIN_RED_LED);
+                    turnOffLight(PIN_GREEN_LED);
+                    logAction("Closing...");
+                    state = STATE_CLOSING;
+                    break;
+                case EVENT_NOT_MODIFIED:
+                    turnOffLight(PIN_GREEN_LED);
+                    turnOnLight(PIN_RED_LED);
+                    moveEngine(DIRECTION_STOP_ENGINE);
+                    logAction("Stop Opening");
+                    state = STATE_STOP_OPENING;
+                    break;
+                default:
+                    logAction("Invalid Event");
+                    break;
+            }
+            break;
+        case STATE_CLOSED:
+        switch (event)
+        {
+            case EVENT_AUTOMATIC_ACTION_CLOSE:
+                // NOTHING TODO
+                break;
+            case EVENT_AUTOMATIC_ACTION_OPEN:
+                logAction("Check Open sensor failure");
+                break;
+            case EVENT_MANUAL_ACTION:
+                moveEngine(DIRECTION_OPEN_ENGINE);
+                turnOnLight(PIN_RED_LED);
+                turnOffLight(PIN_GREEN_LED);
+                logAction("Opening..");
+                state = STATE_OPENING;
+                break;
+            case EVENT_NOT_MODIFIED:
+                logAction("Check Close sensor failure");
+                break;
+            default:
+                logAction("Invalid Event");
+                break;
+        }
+            break;
+    case STATE_OPENED:
+        switch (event)
+        {
+            case EVENT_AUTOMATIC_ACTION_CLOSE:
+                logAction("Check Close sensor failure");
+                break;
+            case EVENT_AUTOMATIC_ACTION_OPEN:
+                // NOTHING TODO
+                break;
+            case EVENT_MANUAL_ACTION:
+                moveEngine(DIRECTION_CLOSE_ENGINE);
+                logAction("Closing..");
+                state = STATE_CLOSING;
+                break;
+            case EVENT_NOT_MODIFIED:
+                logAction("Check Open sensor failure");
+                break;
+            default:
+                logAction("Invalid Event");
+                break;
+        }
+            break;
+    case STATE_OPENING:
+        switch (event)
+        {
+            case EVENT_AUTOMATIC_ACTION_CLOSE:
+                logAction("Check Close sensor failure");
+                break;
+            case EVENT_AUTOMATIC_ACTION_OPEN:
+                moveEngine(DIRECTION_STOP_ENGINE);
+                logAction("Open");
+                state = STATE_OPENED;
+                break;
+            case EVENT_MANUAL_ACTION:
+                moveEngine(DIRECTION_STOP_ENGINE);
+                logAction("Stop Opening");
+                state = STATE_STOP_OPENING;
+                break;
+            case EVENT_NOT_MODIFIED:
+                moveEngine(DIRECTION_OPEN_ENGINE);
+                break;
+            default:
+                logAction("Invalid Event");
+                break;
+        }
+            break;
+        case STATE_STOP_OPENING:
+        switch (event)
+        {
+            case EVENT_AUTOMATIC_ACTION_CLOSE:
+            logAction("Check Close sensor failure");
+            break;
+            case EVENT_AUTOMATIC_ACTION_OPEN:
+            logAction("Check Open sensor failure");
+            break;
+            case EVENT_MANUAL_ACTION:
+            moveEngine(DIRECTION_CLOSE_ENGINE);
+            logAction("Closing..");
+            state = STATE_CLOSING;
+            break;
+            case EVENT_NOT_MODIFIED:
+            // NOTHING TODO
+            break;
+        default:
+            logAction("Invalid Event");
+            break;
+        }
+            break;
+    case STATE_CLOSING:
+        switch (event)
+        {
+        case EVENT_AUTOMATIC_ACTION_CLOSE:
+            moveEngine(DIRECTION_STOP_ENGINE);
+            turnOnLight(PIN_GREEN_LED);
+            turnOffLight(PIN_RED_LED);
+            logAction("Close");
+            state = STATE_CLOSED;
+            break;
+        case EVENT_AUTOMATIC_ACTION_OPEN:
+            logAction("Check Open sensor failure");
+            break;
+        case EVENT_MANUAL_ACTION:
+            moveEngine(DIRECTION_STOP_ENGINE);
+            logAction("Stop Closing");
+            state = STATE_STOP_CLOSING;
+            break;
         case EVENT_NOT_MODIFIED:
-          // NOTHING TODO
-          break;
-      default:
-        Serial.println("Invalid Event");
-        break;
+            moveEngine(DIRECTION_CLOSE_ENGINE);
+            break;
+        default:
+            logAction("Invalid Event");
+            break;
+        }
+            break;
+    case STATE_STOP_CLOSING:
+        switch (event)
+        {
+            case EVENT_AUTOMATIC_ACTION_CLOSE:
+                logAction("Check Close sensor failure");
+                break;
+            case EVENT_AUTOMATIC_ACTION_OPEN:
+                logAction("Check Open sensor failure");
+                break;
+            case EVENT_MANUAL_ACTION:
+                moveEngine(DIRECTION_OPEN_ENGINE);
+                logAction("Opening..");
+                state = STATE_OPENING;
+                break;
+            case EVENT_NOT_MODIFIED:
+                // NOTHING TODO
+                break;
+            default:
+                logAction("Invalid Event");
+                break;
+            }
+            break;
+        default:
+            logAction("Invalid State");
+            break;
     }
-      break;
-  case STATE_CLOSING:
-    switch (event)
-    {
-      case EVENT_CLOSING_DETECTED:
-        moveEngine(DIRECTION_STOP_ENGINE);
-        turnOnLight(PIN_GREEN_LED);
-        turnOffLight(PIN_RED_LED);
-        Serial.println("Close");
-        state = STATE_CLOSED;
-        break;
-      case EVENT_OPENING_DETECTED:
-        Serial.println("Check Open sensor failure");
-        break;
-      case EVENT_CHANGED_STATE:
-        moveEngine(DIRECTION_STOP_ENGINE);
-        Serial.println("Stop Closing");
-        state = STATE_STOP_CLOSING;
-        break;
-      case EVENT_NOT_MODIFIED:
-        moveEngine(DIRECTION_CLOSE_ENGINE);
-        break;
-      default:
-        Serial.println("Invalid Event");
-        break;
-    }
-    break;
-  case STATE_STOP_CLOSING:
-    switch (event)
-    {
-      case EVENT_CLOSING_DETECTED:
-        Serial.println("Check Close sensor failure");
-        break;
-      case EVENT_OPENING_DETECTED:
-        Serial.println("Check Open sensor failure");
-        break;
-      case EVENT_CHANGED_STATE:
-        moveEngine(DIRECTION_OPEN_ENGINE);
-        Serial.println("Opening..");
-        state = STATE_OPENING;
-        break;
-      case EVENT_NOT_MODIFIED:
-        // NOTHING TODO
-        break;
-      default:
-        Serial.println("Invalid Event");
-        break;
-    }
-    break;
-  default:
-    Serial.println("Invalid State");
-    break;
-  }
 }
 
 void setup()
@@ -283,9 +367,9 @@ void setup()
   Serial.begin(DEFAULT_BAUND_RATE);
   initInputs();
   initOutputs();
-  defineInitState();
 }
 
 void loop()
 {
+    stateMachine();
 }
